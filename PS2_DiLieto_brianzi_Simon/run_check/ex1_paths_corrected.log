@@ -1,0 +1,1182 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       SE—Standard Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: Unlimited-user network, expiring 31 Aug 2027
+Serial number: 401909302651
+  Licensed to: Universita' Bocconi Milano
+               Universita' Bocconi Milano
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+. do ex1_paths_corrected.do 
+
+. clear                                            
+
+. set more off                    
+
+. capture log close 
+
+. 
+. 
+. local user = c(username)
+
+. display "`user'"
+zoedilieto
+
+. 
+. /* Stores filepath conditionally */
+. if ("`user'" == "erick") {
+.     global filepath "/home/erick/TEMP/"
+. }
+
+. 
+. if ("`user'" == "yaelb") {
+.     global filepath "C:\\Users\\yaelb\\OneDrive\\Documents\\Bocconi\\Magistra
+> le\\Secondo Semestre\\micrometrics\\Assignment2\\"
+. }
+
+. 
+. if ("`user'" == "Clément Simon") {
+.     global filepath "C:\Users\Clément Simon\Documents\Etudes\2025-2026\S2\Mic
+> roeconometrics\Problem Set 2\files\"
+. }
+
+. 
+. if ("`user'" == "zoedilieto") {
+.     global filepath "/Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLie
+> to_brianzi_Simon/run_check/"
+. }
+
+. 
+. *ssc install ftools
+. *ssc install require
+. *ssc install reghdfe
+. *ssc install twowayfeweights
+. *ssc install bacondecomp
+. *ssc install coefplot
+. *ssc install avar
+. *ssc install eventstudyinteract
+. 
+. 
+. *EXERCISE 1*
+. import delimited "${filepath}pset_2.csv", clear
+(encoding automatically selected: ISO-8859-1)
+(5 vars, 2,193 obs)
+
+. 
+. /*POINT A 
+> In this case the best option is probably to use analytical weights, as indica
+> ted in the summary for the weighting procedures, as it is weights observation
+> s as if each observation is a mean computed from a sample of size n, where n 
+> is the weight variable (in this case, our size is stpop). */
+. 
+. *POINT B
+. gen treated = 0
+
+. replace treated = 1 if lfdivlaw >= 1968 & lfdivlaw <= 1988
+(1,247 real changes made)
+
+. gen d_t = div_rate if treated == 1
+(991 missing values generated)
+
+. gen d_c = div_rate if treated == 0
+(1,293 missing values generated)
+
+. 
+. preserve 
+
+. 
+. collapse d_t d_c [aw=stpop], by(year)
+
+. twoway ( line d_t year ) ///
+> ( line d_c year , lpattern ( dash )) , ///
+> xline (80) title ( Divorce Rates Evolution  ) ///
+> ytitle ( Divorce Rates per 1000 Persons per Year ) ///
+> legend (order(1 "Laws changed in 1968-1988" 2 "Control")) ///
+> name(fig1, replace)
+
+. graph export "${filepath}fig1.png", replace
+(file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/
+> run_check/fig1.png not found)
+file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/r
+> un_check/fig1.png written in PNG format
+
+. 
+. restore
+
+. 
+. 
+. preserve 
+
+. 
+. gen treated_1 = .
+(2,193 missing values generated)
+
+. replace treated_1 = 1 if inrange(lfdivlaw, 1968, 1973)
+(946 real changes made)
+
+. replace treated_1 = 0 if lfdivlaw == 2000 
+(860 real changes made)
+
+. drop if treated_1 == . 
+(387 observations deleted)
+
+. 
+. gen d_t_1 = div_rate if treated_1 == 1
+(903 missing values generated)
+
+. gen d_c_1 = div_rate if treated_1 == 0
+(992 missing values generated)
+
+. 
+. drop if year > 1978
+(840 observations deleted)
+
+. 
+. collapse d_t_1 d_c_1 [aw=stpop], by(year)
+
+. 
+. twoway ( line d_t year ) ///
+> ( line d_c year , lpattern ( dash )) , ///
+> xline (1968.5) title ( Divorce Rates Evolution  ) ///
+> ytitle ( Divorce Rates per 1000 Persons per Year ) ///
+> legend (order(1 "Laws changed in 1968-1973" 2 "Reformed after 1988")) ///
+> name(fig2, replace)
+
+. graph export "${filepath}fig2.png", replace
+(file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/
+> run_check/fig2.png not found)
+file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/r
+> un_check/fig2.png written in PNG format
+
+. 
+. restore
+
+. 
+. /*Seems that the parallel trend assumption holds, as in both graphs the weigh
+> ted means of the divorce rates for states that changed their divorce laws (ei
+> ther between 1968 and 1988 or between 1969 and 1973) and the ones who didn't 
+> seems to follow the same pattern, even if in states where the divorce laws we
+> re introduced the mean is higher (this makes sense, as it might be that more 
+> progressive states are the ones that intorduces these kind of laws, and it is
+>  likely that in such states divorce rates are higher due to enhanced female i
+> ndependence). */ 
+. 
+. *POINT C
+. keep if year == 1968 | year == 1978
+(2,091 observations deleted)
+
+. 
+. gen UNILATERAL = . 
+(102 missing values generated)
+
+. replace UNILATERAL = 0 if lfdivlaw == 2000 
+(40 real changes made)
+
+. replace UNILATERAL = 1 if inrange(lfdivlaw, 1968, 1973)
+(44 real changes made)
+
+. drop if UNILATERAL == . 
+(18 observations deleted)
+
+. gen POST = 0 
+
+. replace POST = 1 if year == 1978
+(42 real changes made)
+
+. gen POST_UNILATERAL = 0 
+
+. replace POST_UNILATERAL = 1 if UNILATERAL == 1 & POST == 1
+(22 real changes made)
+
+. 
+. *pooled regression 
+. regress div_rate POST_UNILATERAL POST [aw=stpop]
+(sum of wgt is 361,837,146)
+
+      Source |       SS           df       MS      Number of obs   =        82
+-------------+----------------------------------   F(2, 79)        =     30.68
+       Model |  126.222918         2  63.1114591   Prob > F        =    0.0000
+    Residual |  162.485829        79  2.05678264   R-squared       =    0.4372
+-------------+----------------------------------   Adj R-squared   =    0.4229
+       Total |  288.708747        81  3.56430552   Root MSE        =    1.4341
+
+------------------------------------------------------------------------------
+    div_rate | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+POST_UNILA~L |   1.700743    .435953     3.90   0.000     .8330004    2.568486
+        POST |   1.384667    .374009     3.70   0.000     .6402209    2.129114
+       _cons |   2.874307   .2316219    12.41   0.000     2.413275    3.335338
+------------------------------------------------------------------------------
+
+. 
+. *DiD regression 
+. regress div_rate POST POST_UNILATERAL UNILATERAL [aw=stpop]
+(sum of wgt is 361,837,146)
+
+      Source |       SS           df       MS      Number of obs   =        82
+-------------+----------------------------------   F(3, 78)        =     29.57
+       Model |  153.629478         3   51.209826   Prob > F        =    0.0000
+    Residual |  135.079269        78   1.7317855   R-squared       =    0.5321
+-------------+----------------------------------   Adj R-squared   =    0.5141
+       Total |  288.708747        81  3.56430552   Root MSE        =     1.316
+
+------------------------------------------------------------------------------
+    div_rate | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        POST |   2.125585   .3904709     5.44   0.000     1.348217    2.902953
+POST_UNILA~L |  -.0050148   .5864116    -0.01   0.993    -1.172471    1.162441
+  UNILATERAL |   1.705758   .4287826     3.98   0.000     .8521173    2.559399
+       _cons |   2.133389   .2825943     7.55   0.000     1.570787    2.695991
+------------------------------------------------------------------------------
+
+. 
+. /* interpretation: the coefficient for unilateral is always positive: this me
+> ans that in states that introduced the divorce laws in the period 1968-1973, 
+> the divorce rate was higher (at least in the years 1968 and 1978, which is th
+> e ones we have in the sample). This is consitent with the second graph analyz
+> ed in point B. Similarly, post is positive, indicating a general growth in th
+> e number of divorces over time (again, this is consistent with the second gra
+> phs in point B). 
+> However, post_unilateral is significant just in the first regression. 
+> The second regression suggests that there is no increase specific to being a 
+> state where the unilateral laws were introduced betwenn 1969 and 1973. 
+> The fact that the coefficient for post_unilateral is significant in the first
+>  regression is probably because it was capturing the effect of unilateral. 
+> Oveall the second analysis suggest no effect in the introduction of unilatera
+> l divorce laws, just a correlation between states with higher rastes of divor
+> ces and introducing unilateral divorce laws. */
+. 
+. *POINT D 
+. sum div_rate [aw=stpop] if UNILATERAL == 1 & POST == 1
+
+    Variable |     Obs      Weight        Mean   Std. dev.       Min        Max
+-------------+-----------------------------------------------------------------
+    div_rate |      22    87418331    5.959717   1.434905        3.2       15.6
+
+. scalar m11 = r(mean)
+
+. sum div_rate [aw=stpop] if UNILATERAL == 1 & POST == 0
+
+    Variable |     Obs      Weight        Mean   Std. dev.       Min        Max
+-------------+-----------------------------------------------------------------
+    div_rate |      21    73482000    3.839147   1.820102        1.4       22.5
+
+. scalar m10 = r(mean)
+
+. sum div_rate [aw=stpop] if UNILATERAL == 0 & POST == 1
+
+    Variable |     Obs      Weight        Mean   Std. dev.       Min        Max
+-------------+-----------------------------------------------------------------
+    div_rate |      20   105246815    4.258974   1.029559        3.2        6.7
+
+. scalar m01 = r(mean)
+
+. sum div_rate [aw=stpop] if UNILATERAL == 0 & POST == 0
+
+    Variable |     Obs      Weight        Mean   Std. dev.       Min        Max
+-------------+-----------------------------------------------------------------
+    div_rate |      19    95690000    2.133389   .9764194         .8        4.3
+
+. scalar m00 = r(mean)
+
+. 
+. * Export to Excel a table
+. putexcel set TABLE_1.xlsx , replace
+note: file will be replaced when the first putexcel command is issued.
+
+. putexcel A1 = "DiD Table" B1 = "UNILATERAL = 1" C1 = "UNILATERAL = 0" D1 = "D
+> ifference 2"
+file TABLE_1.xlsx saved
+
+. putexcel A2 = "POST = 1" B2 = (m11) C2 = (m01) D2 = (m11 - m01)
+file TABLE_1.xlsx saved
+
+. putexcel A3 = "POST = 0" B3 = (m10) C3 = (m00) D3 = (m10 - m00)
+file TABLE_1.xlsx saved
+
+. putexcel A4 = "Difference 1" B4 = (m11 - m10) C4 = (m01 - m00) D4 = ((m11 - m
+> 10) - (m01 - m00)) 
+file TABLE_1.xlsx saved
+
+. 
+. 
+. *POINT E 
+. use "${filepath}pset_2.dta", clear
+(Divorce data from Wolfers (2006) AER)
+
+. *this analysis in Wolfers is based on a panel data: 
+. encode st, gen(st_id)
+
+. xtset st_id year
+
+Panel variable: st_id (strongly balanced)
+ Time variable: year, 1956 to 1998
+         Delta: 1 unit
+
+. 
+. keep if inrange(year, 1956, 1988)
+(510 observations deleted)
+
+. gen IMP_UNILATERAL = 0 
+
+. replace IMP_UNILATERAL = 1 if year >= lfdivlaw
+(530 real changes made)
+
+. 
+. *regress div_rate on state and year dummies and dummy imp_unilateral
+. 
+. *note: commented out there are "manual" DiD regression, which yields the same
+>  results
+. 
+. *regress div_rate IMP_UNILATERAL i.year i.st_id [aw=stpop]
+.  
+. reghdfe div_rate IMP_UNILATERAL [aw=stpop], absorb(st_id year) vce(cluster st
+> _id)
+(MWFE estimator converged in 5 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,631
+Absorbing 2 HDFE groups                           F(   1,     50) =       0.14
+Statistics robust to heteroskedasticity           Prob > F        =     0.7133
+                                                  R-squared       =     0.9305
+                                                  Adj R-squared   =     0.9268
+                                                  Within R-sq.    =     0.0008
+Number of clusters (st_id)   =         51         Root MSE        =     0.5242
+
+                                 (Std. err. adjusted for 51 clusters in st_id)
+------------------------------------------------------------------------------
+             |               Robust
+    div_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+IMP_UNILAT~L |  -.0548378   .1483906    -0.37   0.713     -.352889    .2432135
+       _cons |   3.925931   .0457093    85.89   0.000     3.834121     4.01774
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       st_id |        51          51           0    *|
+        year |        33           1          32     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
+. *add linear time trends 
+. *regress div_rate IMP_UNILATERAL i.year i.st_id i.st_id#c.year [aw=stpop]
+. 
+. reghdfe div_rate IMP_UNILATERAL [aw=stpop], absorb(st_id year i.st_id#c.year)
+>  vce(cluster st_id)
+(MWFE estimator converged in 14 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,631
+Absorbing 3 HDFE groups                           F(   1,     50) =       5.72
+Statistics robust to heteroskedasticity           Prob > F        =     0.0206
+                                                  R-squared       =     0.9742
+                                                  Adj R-squared   =     0.9719
+                                                  Within R-sq.    =     0.0498
+Number of clusters (st_id)   =         51         Root MSE        =     0.3246
+
+                                 (Std. err. adjusted for 51 clusters in st_id)
+------------------------------------------------------------------------------
+             |               Robust
+    div_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+IMP_UNILAT~L |   .4765677   .1992502     2.39   0.021      .076362    .8767734
+       _cons |    3.76224   .0613758    61.30   0.000     3.638963    3.885517
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+------------------------------------------------------+
+  Absorbed FE | Categories  - Redundant  = Num. Coefs |
+--------------+---------------------------------------|
+        st_id |        51          51           0    *|
+         year |        33           1          32     |
+ st_id#c.year |        51           0          51    ?|
+------------------------------------------------------+
+? = number of redundant parameters may be higher
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
+. *add also quadratic time trends (defined as difference from 1969 to have smal
+> ler values)
+. gen year2 = (year-1956)*(year-1956)  
+
+. 
+. 
+. *CHECK, he doesn't do it like that but if I do like him the square thing gets
+>  omitted ???
+. 
+. *regress div_rate IMP_UNILATERAL i.year i.st_id i.st_id#c.year c.year2#i.st_i
+> d [aw=stpop]
+. 
+. reghdfe div_rate IMP_UNILATERAL [aw=stpop], absorb(st_id year c.year#i.st_id 
+> c.year2#i.st_id) vce(cluster st_id)
+(MWFE estimator converged in 33 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,631
+Absorbing 4 HDFE groups                           F(   1,     50) =       5.13
+Statistics robust to heteroskedasticity           Prob > F        =     0.0279
+                                                  R-squared       =     0.9837
+                                                  Adj R-squared   =     0.9816
+                                                  Within R-sq.    =     0.0360
+Number of clusters (st_id)   =         51         Root MSE        =     0.2627
+
+                                 (Std. err. adjusted for 51 clusters in st_id)
+------------------------------------------------------------------------------
+             |               Robust
+    div_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+IMP_UNILAT~L |   .3360527   .1483756     2.26   0.028     .0380315    .6340739
+       _cons |   3.805523   .0457047    83.26   0.000     3.713723    3.897324
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-------------------------------------------------------+
+   Absorbed FE | Categories  - Redundant  = Num. Coefs |
+---------------+---------------------------------------|
+         st_id |        51          51           0    *|
+          year |        33           1          32     |
+  st_id#c.year |        51           0          51    ?|
+ st_id#c.year2 |        51           0          51    ?|
+-------------------------------------------------------+
+? = number of redundant parameters may be higher
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
+. /* Interpretation: 
+> The most important thing to note is that the coefficient for the dummy imp_un
+> ilateral (=1 for years when the laws already passed), changes across specific
+> ations: for the first one, it is negative and non-significant. This changes a
+> s we take into account linear time trend for each state, as the new coefficie
+> nt for impo_unilateral is positive and significant at any conventional level 
+> (it has value 0.47). 
+> As the first specification was forcing all states to have the same coefficien
+> t (so the same effect of the laws passing), this was likely creating a bias w
+> hich is not present anymore as we allow for state and year interactions. 
+> Also in the third specification imp_unilateral is significant, and it remains
+>  like that in the third specification (0.33, significant at the 0.05 level). 
+> Again, this suggests that taking into account  quadratic time trends as well 
+> allows to get a more precise estimate (indeed some quatratic time trends are 
+> significant). The coefficient in the third specificaiton is smaller, suggesti
+> ng that not allowing for quadratic time trend leads to an overestimation bias
+> . 
+> 
+> Overall, the reason why the results change across specification seems to be t
+> hat different states are on different trends, therefore suggesting a violatio
+> n of the parallel trend assumption: they don't only have different intercepts
+>  (as it is captured by significant coefficient of many states fixed effects i
+> n the first specification), but different slopes when we regress  divorce rat
+> es on having passed divoce laws. This might suggest that the parallel trend a
+> ssumption doesn't hold. 
+> On the contrary, if the parallel trend assumption holds, the results for the 
+> imp_unilateral coefficient should be consistent. */
+. 
+. *POINT F
+. *create simulated observations
+. clear
+
+. set obs 6
+Number of observations (_N) was 0, now 6.
+
+. gen obs = _n 
+
+. gen state = floor(.9 + obs/3 ) 
+
+. bysort state: gen year = _n 
+
+. gen D = (state == 1 & year == 3) 
+
+. replace D = 1 if state == 2 & (year == 2 | year == 3)
+(2 real changes made)
+
+. 
+. *create simulated outcomes
+. set seed 1111
+
+. gen Y = 0.1 + 0.02*(year==2) + 0.05*(D==1) + runiform()/100
+
+. gen Y2 = 0.1 + 0.02*(year==2) + 0.05*(D==1) + 0.3*(state == 2 & year == 3) + 
+> runiform()/100
+
+. gen Y3 = 0.1 + 0.02*(year==2) + 0.05*(D==1) + 0.4*(state == 2 & year == 3) + 
+> runiform()/100
+
+. gen Y4 = 0.1 + 0.02*(year==2) + 0.05*(D==1) + 0.5*(state == 2 & year == 3) + 
+> runiform()/100
+
+. 
+. *regress all Ys on state and year dummies + a treatment dummy 
+. xtset state year 
+
+Panel variable: state (strongly balanced)
+ Time variable: year, 1 to 3
+         Delta: 1 unit
+
+. reghdfe Y D, absorb(state year) vce(cluster state)
+(MWFE estimator converged in 2 iterations)
+warning: missing F statistic; dropped variables due to collinearity or too few 
+> clusters
+
+HDFE Linear regression                            Number of obs   =          6
+Absorbing 2 HDFE groups                           F(   1,      1) =          .
+Statistics robust to heteroskedasticity           Prob > F        =          .
+                                                  R-squared       =     0.9999
+                                                  Adj R-squared   =     0.9993
+                                                  Within R-sq.    =     0.9992
+Number of clusters (state)   =          2         Root MSE        =     0.0008
+
+                                  (Std. err. adjusted for 2 clusters in state)
+------------------------------------------------------------------------------
+             |               Robust
+           Y | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           D |   .0499246   2.55e-17  2.0e+15   0.000     .0499246    .0499246
+       _cons |   .1116107   1.67e-17  6.7e+15   0.000     .1116107    .1116107
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       state |         2           2           0    *|
+        year |         3           1           2     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe Y2 D, absorb(state year) vce(cluster state)
+(MWFE estimator converged in 2 iterations)
+warning: missing F statistic; dropped variables due to collinearity or too few 
+> clusters
+
+HDFE Linear regression                            Number of obs   =          6
+Absorbing 2 HDFE groups                           F(   1,      1) =          .
+Statistics robust to heteroskedasticity           Prob > F        =          .
+                                                  R-squared       =     0.7462
+                                                  Adj R-squared   =    -0.2692
+                                                  Within R-sq.    =     0.1333
+Number of clusters (state)   =          2         Root MSE        =     0.1524
+
+                                  (Std. err. adjusted for 2 clusters in state)
+------------------------------------------------------------------------------
+             |               Robust
+          Y2 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           D |  -.1035129   2.23e-16 -4.6e+14   0.000    -.1035129   -.1035129
+       _cons |   .2367839   1.21e-16  2.0e+15   0.000     .2367839    .2367839
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       state |         2           2           0    *|
+        year |         3           1           2     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe Y3 D, absorb(state year) vce(cluster state)
+(MWFE estimator converged in 2 iterations)
+warning: missing F statistic; dropped variables due to collinearity or too few 
+> clusters
+
+HDFE Linear regression                            Number of obs   =          6
+Absorbing 2 HDFE groups                           F(   1,      1) =          .
+Statistics robust to heteroskedasticity           Prob > F        =          .
+                                                  R-squared       =     0.7297
+                                                  Adj R-squared   =    -0.3514
+                                                  Within R-sq.    =     0.1686
+Number of clusters (state)   =          2         Root MSE        =     0.2001
+
+                                  (Std. err. adjusted for 2 clusters in state)
+------------------------------------------------------------------------------
+             |               Robust
+          Y3 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           D |  -.1561167   2.90e-16 -5.4e+14   0.000    -.1561167   -.1561167
+       _cons |   .2808918   1.39e-16  2.0e+15   0.000     .2808918    .2808918
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       state |         2           2           0    *|
+        year |         3           1           2     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe Y4 D, absorb(state year) vce(cluster state)
+(MWFE estimator converged in 2 iterations)
+warning: missing F statistic; dropped variables due to collinearity or too few 
+> clusters
+
+HDFE Linear regression                            Number of obs   =          6
+Absorbing 2 HDFE groups                           F(   1,      1) =          .
+Statistics robust to heteroskedasticity           Prob > F        =          .
+                                                  R-squared       =     0.7301
+                                                  Adj R-squared   =    -0.3493
+                                                  Within R-sq.    =     0.1647
+Number of clusters (state)   =          2         Root MSE        =     0.2524
+
+                                  (Std. err. adjusted for 2 clusters in state)
+------------------------------------------------------------------------------
+             |               Robust
+          Y4 | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           D |  -.1941241   2.95e-16 -6.6e+14   0.000    -.1941241   -.1941241
+       _cons |   .3173328   1.42e-16  2.2e+15   0.000     .3173328    .3173328
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       state |         2           2           0    *|
+        year |         3           1           2     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
+. /*when we use the first Y, there is a positive tratment effect that is specif
+> ied in the Y equation, and that it is correctly identifies in the regression 
+> (here the coefficient is 0.049, very close to the theoretical 0.05, significa
+> nt at any conventional size). 
+> However, under the Y2,3,4 specification, we add an additional positive compon
+> ent in period 3  for state 2: this can be interpreted as a boost of the treat
+> ment effect in the second period of treatment, or as something specific to st
+> ate 2. in any case, we end up with heterogeneous treatment effect.
+> We easily see that the coefficient estimation for D, even if it remains signi
+> ficant, gets wrong in all of the remaining regressions. It is negative, and t
+> he bias increases the bigger the shock in period 3 becomes (note it goes from
+>  0.3 to 0.5). 
+> With staggered implementetion and heterogeneous treatment effect, we no longe
+> r compare a treated and an untreated unit: already treated units are used as 
+> controls for later-treated units. These simple regressions show how if there 
+> are time trends that we do not take into account across states, the resulting
+>  coefficients for the treatment can get biased, making it impossible to estim
+> ate the treatment coefficient consistenly. */ 
+. 
+. *POINT G
+. *keep balanced panel 
+. twowayfeweights Y state year D, type(feTR)
+twowayfeweights requires the gtools package: ssc install gtools, replace
+
+. twowayfeweights Y2 state year D, type(feTR)
+twowayfeweights requires the gtools package: ssc install gtools, replace
+
+. twowayfeweights Y3 state year D, type(feTR)
+twowayfeweights requires the gtools package: ssc install gtools, replace
+
+. twowayfeweights Y4 state year D, type(feTR)
+twowayfeweights requires the gtools package: ssc install gtools, replace
+
+. 
+. /* The TWFE estimand is the sum of the ATT for the specific (state, year) wit
+> h weights that sum to one. The coefficient for D in the regression is the sam
+> ple estimate of the TWFE estimand. 
+> However, weights can be negative. This is not relevant for the first regressi
+> on (where Y is the outcome) as the ATT is the same for all states. But as we 
+> get staggered adoption (Y2, Y3, Y4) negative weights matter, as this can lead
+>  to wrong counterfactuals if the size or sign of the treatment changes over t
+> ime. 
+> In this simulation the cell (state = 2, year = 3) has the larger treatment ef
+> fect as it both receives the baseline treatment and the positive shock: in th
+> ese cases the ATT varies across units and time.
+> The ATT for state 2, year 3 is way bigger but it is taken into account with a
+>  negative weight: this leads the overall coefficient for D downward and even 
+> makes it negative. As the size of the shock increases (progressively going fr
+> om Y2 to Y4), the ATT for (state = 2, year = 3) increases, and the coefficien
+> t for D gets more and more negative (the bias increases in absolute value). 
+> Negative weights explain the biases in the last three regressions, and also w
+> hy the bias increases as the shock increases. */
+. 
+. * POINT H
+. 
+. *reload data
+. 
+. use "${filepath}pset_2.dta", clear
+(Divorce data from Wolfers (2006) AER)
+
+. encode st, gen(st_id)
+
+. xtset st_id year
+
+Panel variable: st_id (strongly balanced)
+ Time variable: year, 1956 to 1998
+         Delta: 1 unit
+
+. keep if inrange(year, 1956, 1988)
+(510 observations deleted)
+
+. gen IMP_UNILATERAL = 0 
+
+. replace IMP_UNILATERAL = 1 if year >= lfdivlaw
+(530 real changes made)
+
+. 
+. *create initial population variable
+. sort st year
+
+. by st: gen init_stpop = stpop[1]
+
+. 
+. *re-run regression using new weights
+. reghdfe div_rate IMP_UNILATERAL [aw=init_stpop], absorb(st_id year) vce(clust
+> er st_id)
+(MWFE estimator converged in 5 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,631
+Absorbing 2 HDFE groups                           F(   1,     50) =       0.04
+Statistics robust to heteroskedasticity           Prob > F        =     0.8367
+                                                  R-squared       =     0.9339
+                                                  Adj R-squared   =     0.9303
+                                                  Within R-sq.    =     0.0003
+Number of clusters (st_id)   =         51         Root MSE        =     0.4860
+
+                                 (Std. err. adjusted for 51 clusters in st_id)
+------------------------------------------------------------------------------
+             |               Robust
+    div_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+IMP_UNILAT~L |  -.0298609   .1441557    -0.21   0.837    -.3194062    .2596845
+       _cons |   3.682638   .0371243    99.20   0.000     3.608072    3.757205
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       st_id |        51          51           0    *|
+        year |        33           1          32     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
+. *Bacon decomposition of treatment effect
+. bacondecomp div_rate IMP_UNILATERAL [aw=init_stpop], ddetail msymbols(O T)
+Computing decomposition across 12 timing groups
+including an always-treated group and a never-treated group
+------------------------------------------------------------------------------
+    div_rate | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+IMP_UNILAT~L |  -.0298609   .0464844    -0.64   0.521    -.1209687     .061247
+------------------------------------------------------------------------------
+
+Bacon Decomposition
+
++---------------------------------------------------+
+|                      |         Beta   TotalWeight |
+|----------------------+----------------------------|
+|         Early_v_Late |  .0637007728   .0002335079 |
+|         Late_v_Early | -.4258077145   .0003412807 |
+|         Early_v_Late |  .2984845936    .000300135 |
+|         Late_v_Early |  .1270748973   .0004155715 |
+|         Early_v_Late |  1.131138921   .0012520096 |
+|         Late_v_Early |  1.520824194   .0016097268 |
+|         Early_v_Late |  .3403153121   .0004810536 |
+|         Late_v_Early | -.2044568658   .0006563601 |
+|         Early_v_Late |  .8491130471     .00272341 |
+|         Late_v_Early |   .900224328    .003389903 |
+|         Early_v_Late |  .2747811079   .0009357972 |
+|         Late_v_Early | -.1192200258   .0010892872 |
+|         Early_v_Late |  .1477426142   .0007500814 |
+|         Late_v_Early | -.0968145281   .0009231771 |
+|         Early_v_Late |  .4921678603   .0046934343 |
+|         Late_v_Early |  .8699371815   .0053639247 |
+|         Early_v_Late |  .0842511132   .0021545064 |
+|         Late_v_Early | -.0108317258   .0022981403 |
+|         Early_v_Late | -.1683520973    .001252337 |
+|         Late_v_Early |  .1104109511   .0012810771 |
+|         Early_v_Late |  .5384658575   .0011179177 |
+|         Late_v_Early |  .1541761756   .0012578117 |
+|         Early_v_Late |  .8237497211    .006616734 |
+|         Late_v_Early |   1.08085072   .0069808911 |
+|         Early_v_Late |  .5866427422   .0034886184 |
+|         Late_v_Early |  .3321280181   .0034445064 |
+|         Early_v_Late |  .2651094198   .0026875353 |
+|         Late_v_Early |  .4033977389   .0025619402 |
+|         Early_v_Late |  .3039239347   .0016207691 |
+|         Late_v_Early |  .1722153574   .0014362791 |
+|         Early_v_Late |  .6568879485   .0004496209 |
+|         Late_v_Early | -.2120618522   .0005098334 |
+|         Early_v_Late |  .8362025619   .0031981218 |
+|         Late_v_Early |  .6712035537   .0032914207 |
+|         Early_v_Late |  .6886942983    .001762164 |
+|         Late_v_Early |  .0203861222   .0016922265 |
+|         Early_v_Late |  .3744960129   .0015331438 |
+|         Late_v_Early |  .1151748225   .0014149741 |
+|         Early_v_Late |   .597643137   .0012592449 |
+|         Late_v_Early |  .0712846443   .0010572807 |
+|         Early_v_Late |  .6249433756   .0008351705 |
+|         Late_v_Early | -.1092955619   .0006697503 |
+|         Early_v_Late |   .954945147   .0000836395 |
+|         Late_v_Early |  .7010988593   .0000836395 |
+|         Early_v_Late |  .9529092312   .0005981165 |
+|         Late_v_Early |   1.45479548   .0005553939 |
+|         Early_v_Late |  .8607065082   .0003432044 |
+|         Late_v_Early |  .8493637443   .0002974438 |
+|         Early_v_Late |   .465454191   .0003149533 |
+|         Late_v_Early |  .8474446535   .0002652917 |
+|         Early_v_Late |  .7381144762   .0002916242 |
+|         Late_v_Early |  .9028558135   .0002230067 |
+|         Early_v_Late |  .6745541096   .0002491341 |
+|         Late_v_Early |  .6868011355    .000185373 |
+|         Early_v_Late |   .026162982   .0000439035 |
+|         Late_v_Early |  .6883347034   .0000312781 |
+|         Early_v_Late | -.1336539537   .0000355041 |
+|         Late_v_Early |  .4624999464    .000032773 |
+|         Early_v_Late | -.1479324251   .0002591838 |
+|         Late_v_Early |  1.150886536   .0002221576 |
+|         Early_v_Late | -.2548572421   .0001529711 |
+|         Late_v_Early |  .4651318789   .0001223769 |
+|         Early_v_Late | -.6833600402   .0001463334 |
+|         Late_v_Early |  .3671613336   .0001136964 |
+|         Early_v_Late | -.2779660523   .0001444234 |
+|         Late_v_Early |  .5159669518   .0001019459 |
+|         Early_v_Late | -.5187509656   .0001398092 |
+|         Late_v_Early |  .0079767006   .0000957428 |
+|         Early_v_Late | -1.116131783   .0000325604 |
+|         Late_v_Early |  .0287544467   .0000214479 |
+|         Early_v_Late | -.4249996841   2.70660e-06 |
+|         Late_v_Early | -.0166662727   1.62396e-06 |
+|         Early_v_Late |   .620192349   .0001524856 |
+|         Late_v_Early |  .4624999762   .0000469187 |
+|         Early_v_Late |  .2341149896   .0011926728 |
+|         Late_v_Early |   .958455801   .0003407636 |
+|         Early_v_Late |  .4606926143   .0007664899 |
+|         Late_v_Early |  .5853696465   .0002043973 |
+|         Early_v_Late | -.0572246239   .0008246552 |
+|         Late_v_Early |  .1268984973   .0002116017 |
+|         Early_v_Late |  .2758665979   .0009304201 |
+|         Late_v_Early |  .6294078231   .0002189224 |
+|         Early_v_Late |  .3650416136   .0011212354 |
+|         Late_v_Early |  .4341091514    .000251125 |
+|         Early_v_Late | -.4571879804   .0003517627 |
+|         Late_v_Early | -.0549640208   .0000767632 |
+|         Early_v_Late |  .1716666222   .0000523102 |
+|         Late_v_Early | -.1333333999    .000010462 |
+|         Early_v_Late |  .8375000954   .0000181342 |
+|         Late_v_Early |  .7375000119   3.45413e-06 |
+|      Always_v_timing | -.1465494522   .0266503413 |
+|       Never_v_timing | -.0844477687   .8803531505 |
++---------------------------------------------------+
+
+. graph export "${filepath}bacon_decomp.png", replace
+(file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/
+> run_check/bacon_decomp.png not found)
+file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/r
+> un_check/bacon_decomp.png written in PNG format
+
+. 
+. * Note: bacondecomp requires a balanced panel and an absorbing (weakly monoto
+> nic) treatment. IMP_UNILATERAL is already absorbing by construction.
+. * We use init_stpop as weights for consistency with the regression above.
+. 
+. * Goodman-Bacon decomposes the TWFE estimator into a weighted average of DiD 
+> comparisons (treated vs not-treated, early treatment vs late treatment and la
+> te treatment vs early treatment). Some components may receive problematic wei
+> ghts (negative or because already-treated units are used as controls), which 
+> we will now check for our estimator.
+. 
+. * The Never-treated vs. timing comparison dominates the TFWE coefficient (wei
+> ght of 0.88)
+. * All individual weights in the decomposition are positive, so there is no ev
+> idence of negative weights.
+. * However, there is significant heterogeneity (from -1.1 to +1.5) in the 2×2 
+> DiD estimates of timing-group comparisons (Early vs. Late and Late vs. Early)
+> , with some negative estimates receiving small but non-zero weights. This het
+> erogeneity suggests that treatment effects vary across cohorts and over time.
+>  
+. 
+. *POINT I
+. 
+. *step 1: create unilateral divorce dummies
+. 
+. quietly{
+
+. 
+. *(i): regression on state and year FEs only
+. reghdfe div_rate D_lag* D_lead* [aw=stpop], ///
+>     absorb(st_id year) vce(cluster st_id)
+(MWFE estimator converged in 5 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,631
+Absorbing 2 HDFE groups                           F(  25,     50) =      16.58
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.9351
+                                                  Adj R-squared   =     0.9305
+                                                  Within R-sq.    =     0.0671
+Number of clusters (st_id)   =         51         Root MSE        =     0.5104
+
+                                 (Std. err. adjusted for 51 clusters in st_id)
+------------------------------------------------------------------------------
+             |               Robust
+    div_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     D_lag10 |   .0558855   .1574381     0.35   0.724    -.2603382    .3721092
+      D_lag9 |   .0808726   .1447725     0.56   0.579    -.2099115    .3716568
+      D_lag8 |   .0602846   .1101617     0.55   0.587    -.1609818     .281551
+      D_lag7 |   .0183927   .1133227     0.16   0.872    -.2092225     .246008
+      D_lag6 |    .020862    .108222     0.19   0.848    -.1965083    .2382323
+      D_lag5 |   .0988424   .0883375     1.12   0.269    -.0785887    .2762735
+      D_lag4 |   .0997316   .0663872     1.50   0.139     -.033611    .2330741
+      D_lag3 |   .0377587   .0576179     0.66   0.515    -.0779703    .1534876
+      D_lag2 |   .0401147   .0516675     0.78   0.441    -.0636625     .143892
+     D_lead0 |   .2891561   .2021346     1.43   0.159    -.1168432    .6951554
+     D_lead1 |   .3358503   .1008545     3.33   0.002     .1332781    .5384224
+     D_lead2 |   .3037197   .0943014     3.22   0.002     .1143098    .4931296
+     D_lead3 |   .2162947   .1083233     2.00   0.051    -.0012791    .4338686
+     D_lead4 |   .1824478   .1117311     1.63   0.109    -.0419707    .4068662
+     D_lead5 |   .2469589   .1216002     2.03   0.048     .0027177    .4912001
+     D_lead6 |   .2521922   .1332322     1.89   0.064    -.0154125    .5197969
+     D_lead7 |   .1684823    .130352     1.29   0.202    -.0933373    .4303019
+     D_lead8 |   -.007686   .1204804    -0.06   0.949     -.249678    .2343061
+     D_lead9 |  -.1312296   .1334098    -0.98   0.330     -.399191    .1367318
+    D_lead10 |  -.1795675   .1592655    -1.13   0.265    -.4994617    .1403267
+    D_lead11 |  -.3662379   .1627914    -2.25   0.029     -.693214   -.0392618
+    D_lead12 |  -.3894262   .1658244    -2.35   0.023    -.7224944   -.0563581
+    D_lead13 |  -.4421197   .1918292    -2.30   0.025    -.8274201   -.0568193
+    D_lead14 |  -.3402803   .1683406    -2.02   0.049    -.6784024   -.0021583
+    D_lead15 |   -.526895   .2560365    -2.06   0.045    -1.041159   -.0126307
+       _cons |   3.898777   .1009237    38.63   0.000     3.696066    4.101488
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       st_id |        51          51           0    *|
+        year |        33           1          32     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. estimates store es_1
+
+. 
+. *(ii): regression + state specific linear time trends
+. reghdfe div_rate D_lag* D_lead* [aw=stpop], ///
+>     absorb(st_id year i.st_id#c.year) vce(cluster st_id)
+(MWFE estimator converged in 14 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,631
+Absorbing 3 HDFE groups                           F(  25,     50) =      11.95
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.9758
+                                                  Adj R-squared   =     0.9732
+                                                  Within R-sq.    =     0.1078
+Number of clusters (st_id)   =         51         Root MSE        =     0.3171
+
+                                 (Std. err. adjusted for 51 clusters in st_id)
+------------------------------------------------------------------------------
+             |               Robust
+    div_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     D_lag10 |  -.2757351   .3106094    -0.89   0.379    -.8996124    .3481422
+      D_lag9 |  -.1706747   .2664291    -0.64   0.525    -.7058133    .3644638
+      D_lag8 |  -.1610772   .2276157    -0.71   0.482    -.6182568    .2961023
+      D_lag7 |  -.1708443    .202571    -0.84   0.403    -.5777202    .2360315
+      D_lag6 |  -.1356809   .1715694    -0.79   0.433    -.4802883    .2089264
+      D_lag5 |  -.0298635   .1100576    -0.27   0.787    -.2509207    .1911938
+      D_lag4 |   .0038068   .0937612     0.04   0.968    -.1845182    .1921317
+      D_lag3 |  -.0295144   .0794049    -0.37   0.712    -.1890038     .129975
+      D_lag2 |   .0054455   .0651854     0.08   0.934    -.1254832    .1363742
+     D_lead0 |   .3245811   .2236595     1.45   0.153    -.1246522    .7738145
+     D_lead1 |   .4002711   .1342109     2.98   0.004     .1307005    .6698417
+     D_lead2 |   .4063047   .1326889     3.06   0.004     .1397913    .6728182
+     D_lead3 |   .3525362   .1707766     2.06   0.044     .0095212    .6955512
+     D_lead4 |   .3505619   .1757577     1.99   0.052    -.0024577    .7035816
+     D_lead5 |   .4460773   .1922878     2.32   0.024     .0598558    .8322988
+     D_lead6 |   .4840172   .2118808     2.28   0.027     .0584422    .9095923
+     D_lead7 |   .4321828   .2163832     2.00   0.051    -.0024356    .8668012
+     D_lead8 |    .298299   .2251109     1.33   0.191    -.1538495    .7504476
+     D_lead9 |   .2095742   .2401652     0.87   0.387    -.2728119    .6919603
+    D_lead10 |   .1834858   .2271267     0.81   0.423    -.2727117    .6396832
+    D_lead11 |   .0291831   .2449544     0.12   0.906    -.4628222    .5211885
+    D_lead12 |   .0408965   .2697399     0.15   0.880     -.500892    .5826851
+    D_lead13 |   .0359717   .2611547     0.14   0.891    -.4885729    .5605163
+    D_lead14 |    .151996   .3468254     0.44   0.663    -.5446234    .8486154
+    D_lead15 |   .0323933   .3135557     0.10   0.918    -.5974019    .6621884
+       _cons |   4.003124   .1427279    28.05   0.000     3.716446    4.289801
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+------------------------------------------------------+
+  Absorbed FE | Categories  - Redundant  = Num. Coefs |
+--------------+---------------------------------------|
+        st_id |        51          51           0    *|
+         year |        33           1          32     |
+ st_id#c.year |        51           0          51    ?|
+------------------------------------------------------+
+? = number of redundant parameters may be higher
+* = FE nested within cluster; treated as redundant for DoF computation
+
+.         
+. estimates store es_2
+
+. 
+. *(iii): regression + state specific quadratic time trends (computed as differ
+> ence from 1956 to make them smaller)
+. gen year2 = (1956 - year)^2 
+
+. reghdfe div_rate D_lag* D_lead* [aw=stpop], ///
+>     absorb(st_id year i.st_id#c.year i.st_id#c.year2) vce(cluster st_id)
+(MWFE estimator converged in 33 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,631
+Absorbing 4 HDFE groups                           F(  25,     50) =      14.86
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.9845
+                                                  Adj R-squared   =     0.9822
+                                                  Within R-sq.    =     0.0810
+Number of clusters (st_id)   =         51         Root MSE        =     0.2586
+
+                                 (Std. err. adjusted for 51 clusters in st_id)
+------------------------------------------------------------------------------
+             |               Robust
+    div_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     D_lag10 |   .3172453   .3233076     0.98   0.331    -.3321372    .9666278
+      D_lag9 |   .2647651   .2708512     0.98   0.333    -.2792556    .8087857
+      D_lag8 |    .215015    .235565     0.91   0.366    -.2581312    .6881612
+      D_lag7 |   .1453737   .2160391     0.67   0.504    -.2885536     .579301
+      D_lag6 |   .1203781   .1867859     0.64   0.522    -.2547924    .4955486
+      D_lag5 |   .1680805   .1562162     1.08   0.287     -.145689    .4818499
+      D_lag4 |   .1456175   .1062505     1.37   0.177    -.0677929     .359028
+      D_lag3 |   .0698002   .0817997     0.85   0.398    -.0944993    .2340998
+      D_lag2 |   .0540573   .0536065     1.01   0.318    -.0536146    .1617292
+     D_lead0 |   .2772198   .2029342     1.37   0.178    -.1303855    .6848252
+     D_lead1 |   .2987592   .1125205     2.66   0.011     .0727551    .5247633
+     D_lead2 |    .273071   .1206083     2.26   0.028     .0308221    .5153199
+     D_lead3 |   .1715573   .1521371     1.13   0.265    -.1340191    .4771336
+     D_lead4 |   .1346455   .1604472     0.84   0.405    -.1876221    .4569132
+     D_lead5 |    .198059   .1661043     1.19   0.239    -.1355714    .5316893
+     D_lead6 |   .2065941   .1815046     1.14   0.260    -.1579687    .5711569
+     D_lead7 |   .1269853   .1880631     0.68   0.503    -.2507505    .5047211
+     D_lead8 |  -.0324818   .2139287    -0.15   0.880    -.4621704    .3972067
+     D_lead9 |   -.143156   .2287396    -0.63   0.534     -.602593     .316281
+    D_lead10 |  -.1864666   .2528343    -0.74   0.464    -.6942992     .321366
+    D_lead11 |  -.3522271   .2677809    -1.32   0.194    -.8900808    .1856266
+    D_lead12 |  -.3472959   .2794385    -1.24   0.220    -.9085647    .2139728
+    D_lead13 |  -.3480862   .3272897    -1.06   0.293    -1.005467    .3092945
+    D_lead14 |  -.2058725   .3248568    -0.63   0.529    -.8583666    .4466217
+    D_lead15 |  -.1931653   .3701799    -0.52   0.604    -.9366934    .5503629
+       _cons |   3.725312   .1608342    23.16   0.000     3.402267    4.048357
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-------------------------------------------------------+
+   Absorbed FE | Categories  - Redundant  = Num. Coefs |
+---------------+---------------------------------------|
+         st_id |        51          51           0    *|
+          year |        33           1          32     |
+  st_id#c.year |        51           0          51    ?|
+ st_id#c.year2 |        51           0          51    ?|
+-------------------------------------------------------+
+? = number of redundant parameters may be higher
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. estimates store es_3
+
+. 
+. *Interpretation: Across all three specifications, pre-treatment coefficients 
+> are close to zero and insignificant, supporting the parallel trends assumptio
+> n. Post-treatment, we observe a temporary spike in divorce rates in the first
+>  8 years following the reform, which then fades and becomes insignificant — s
+> omething the single-coefficient analysis in point (e) could not detect, as it
+>  was averaging over this entire dynamic response into one number.
+. 
+. *POINT J
+. 
+. *ssc install coefplot
+. set scheme s1color
+
+. 
+. * Plot all 3 specifications on the same graph using stored estimates.
+. coefplot (es_1, label("No trends")) ///
+>          (es_2, label("Linear trends")) ///
+>          (es_3, label("Quadratic trends")), ///
+>          keep(D_lag* D_lead*) vertical yline(0) ///
+>          xtitle("Years relative to treatment") ///
+>          ytitle("Effect on divorce rate (per 1,000 persons)") ///
+>          title("Event Study: Unilateral Divorce Laws") ///
+>          xlabel(, angle(45) alternate) ///
+>          legend(position(6))
+
+. graph export "${filepath}event_study.png", replace
+(file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/
+> run_check/event_study.png not found)
+file /Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/r
+> un_check/event_study.png written in PNG format
+
+. 
+. *POINT K
+. 
+. *Wolfers (2006) produces a more exhaustive and dynamic analysis of data than 
+> Friedberg (1998). His main contributions are on methdology and sample
+. 
+. * Methodology : Friedberg's state-specific trends are misidentified because s
+> he uses a single Unilateral dummy to capture the full dynamic response, the s
+> tate-specific trends end up absorbing part of the post-treatment adjustment (
+> the return to baseline after the initial spike) rather than only pre-existing
+>  differences. This leads her to overestimate the persistent effect of divorce
+>  laws. Indeed "standard difference-in-difference approaches are led to confou
+> nd pre-existing trends with the effects of the policy shock".
+. * This is why in the exercise we add IMP_UNILATERAL, an absorbing variable.
+. 
+. * Sample : extending the pre-treatment period to 1956 allowing for a more cre
+> dible identification of pre-existing state trends. He also investigates the p
+> ost-treatment period to examine whether the treatment results in a shift of d
+> ivorces timing rather than an increase in divorces. 
+. 
+. *Other contributions from his paper are: 
+. *(i) adding some granularity on the analysis by constructing a measure for th
+> e ever-divorced population and using the number of divorces per 1,000 married
+>  persons as a metric
+. * (ii) exploring implications for the stock of marriage through stock-flow dy
+> namics. 
+. *(iii) challenging Friedberg's conclusions on the long-term impact of divorce
+>  laws on the divorce rate by showcasing the difficulty of such an analysis.
+. * His conclusion is that the "results suggest only a minor role for changing 
+> divorce laws", suggesting that spousal bargaing is "sufficiently close to eff
+> icient"
+. 
+. * He explores two main assumptions:
+. *(i) the Coasian assumption of efficient bargaining arguably provides a more 
+> useful guide than the polar opposite assumption of no bargaining --> divorce 
+> laws shouldn't affect divorce rate in the long-term.
+. *(ii) each spouse has independent forecast errors.
+. * His results are therefore consistent with a Coasian view of marital bargain
+> ing. 
+. 
+. 
+. * Point L
+. 
+. * Key requirements are satisfied, as we have some never-treated" or "last-tre
+> ated" states to serve as the clean control.
+. 
+. * Graph 1 FE only
+. 
+. ssc install avar
+host not found
+http://fmwww.bc.edu/repec/bocode/a/ either
+  1)  is not a valid URL, or
+  2)  could not be contacted, or
+  3)  is not a Stata download site (has no stata.toc file).
+r(631);
+
+end of do-file
+r(631);

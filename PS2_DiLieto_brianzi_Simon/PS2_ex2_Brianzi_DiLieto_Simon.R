@@ -17,7 +17,7 @@ if (user == "erick") {
 } else if (user == "Clément Simon") {
   filepath <- "C:\\Users\\Clément Simon\\Documents\\Etudes\\2025-2026\\S2\\Microeconometrics\\Problem Set 2\\files\\"
 } else if (user == "zoedilieto") {
-  filepath <- "/Users/zoedilieto/Desktop/micrometrics/PS2/files/"
+  filepath <- "/Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/"
 }
 
 # Print the selected file path
@@ -32,7 +32,7 @@ print(paste("File path set to:", filepath))
 
 library(dplyr)
 library(haven); library(grf)
-auto <- read.csv("/Users/zoedilieto/Desktop/micrometrics/PS2/files/expanded_data.csv", sep=",")
+auto <- read.csv(file.path(filepath, "expanded_data.csv"), sep=",")
 auto <- auto[(auto$lfdivlaw >= 1969 & auto$lfdivlaw <= 1973) | auto$lfdivlaw == 2000, ]
 #here we keep only the states in the sample adopting the unilateral divorce law between 1969 and 1973, and the ones adopting it in 2000. 
 
@@ -123,6 +123,7 @@ paste("AUTOC:", round(rate$estimate, 2), "+/", round(1.96 * rate$std.err, 2))
 #on the divorce rates. 
 
 #(iii) Plot the distribution of CATEs: 
+cate_hat <- predict(cf)$predictions
 hist(cate_hat, main = "Distribution of CATEs", xlab = "CATE")
 
 #The distribution of CATE shows quite some dispersion, the rage goes from -0.4 to 0.6 predicted treatment effect. The graph shows an histogram, 

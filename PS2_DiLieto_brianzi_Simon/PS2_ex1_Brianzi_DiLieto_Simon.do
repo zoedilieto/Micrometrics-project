@@ -20,7 +20,7 @@ if ("`user'" == "Clément Simon") {
 }
 
 if ("`user'" == "zoedilieto") {
-    global filepath "/Users/zoedilieto/Desktop/PS2_DiLieto_brianzi_Simon/"
+    global filepath "/Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/"
 }
 
 *ssc install ftools
@@ -73,8 +73,8 @@ drop if year > 1978
 
 collapse d_t_1 d_c_1 [aw=stpop], by(year)
 
-twoway ( line d_t year ) ///
-( line d_c year , lpattern ( dash )) , ///
+twoway ( line d_t_1 year ) ///
+( line d_c_1 year , lpattern ( dash )) , ///
 xline (1968.5) title ( Divorce Rates Evolution  ) ///
 ytitle ( Divorce Rates per 1000 Persons per Year ) ///
 legend (order(1 "Laws changed in 1968-1973" 2 "Reformed after 1988")) ///
@@ -338,8 +338,11 @@ graph export "${filepath}event_study.png", replace
 
 * Graph 1 FE only
 
-ssc install avar
-ssc install eventstudyinteract
+* Install these packages only if they are not already available.
+capture which avar
+if _rc ssc install avar
+capture which eventstudyinteract
+if _rc ssc install eventstudyinteract
 
 * Step 1: generate control and treatment cohorts 
 gen never_treated = (lfdivlaw == 2000)

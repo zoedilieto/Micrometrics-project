@@ -1,0 +1,431 @@
+set graphics off
+clear						 
+set more off			
+capture log close 
+
+
+local user = c(username)
+display "`user'"
+
+/* Stores filepath conditionally */
+if ("`user'" == "erick") {
+    global filepath "/home/erick/TEMP/"
+}
+
+if ("`user'" == "yaelb") {
+    global filepath "C:\\Users\\yaelb\\OneDrive\\Documents\\Bocconi\\Magistrale\\Secondo Semestre\\micrometrics\\Assignment2\\"
+}
+
+if ("`user'" == "Clément Simon") {
+    global filepath "C:\Users\Clément Simon\Documents\Etudes\2025-2026\S2\Microeconometrics\Problem Set 2\files\"
+}
+
+if ("`user'" == "zoedilieto") {
+    global filepath "/Users/zoedilieto/Desktop/Micrometrics project/PS2_DiLieto_brianzi_Simon/run_check/"
+}
+
+*ssc install ftools
+*ssc install require
+*ssc install reghdfe
+*ssc install twowayfeweights
+*ssc install bacondecomp
+*ssc install coefplot
+*which avar
+*which eventstudyinteract
+
+
+*EXERCISE 1*
+import delimited "${filepath}pset_2.csv", clear
+
+/*POINT A 
+In this case the best option is probably to use analytical weights, as indicated in the summary for the weighting procedures, as it is weights observations as if each observation is a mean computed from a sample of size n, where n is the weight variable (in this case, our size is stpop). */
+
+*POINT B
+gen treated = 0
+replace treated = 1 if lfdivlaw >= 1968 & lfdivlaw <= 1988
+gen d_t = div_rate if treated == 1
+gen d_c = div_rate if treated == 0
+
+preserve 
+
+collapse d_t d_c [aw=stpop], by(year)
+twoway ( line d_t year ) ///
+( line d_c year , lpattern ( dash )) , ///
+xline (80) title ( Divorce Rates Evolution  ) ///
+ytitle ( Divorce Rates per 1000 Persons per Year ) ///
+legend (order(1 "Laws changed in 1968-1988" 2 "Control")) ///
+name(fig1, replace)
+* Run check: omitted graph export
+
+restore
+
+
+preserve 
+
+gen treated_1 = .
+replace treated_1 = 1 if inrange(lfdivlaw, 1968, 1973)
+replace treated_1 = 0 if lfdivlaw == 2000 
+drop if treated_1 == . 
+
+gen d_t_1 = div_rate if treated_1 == 1
+gen d_c_1 = div_rate if treated_1 == 0
+
+drop if year > 1978
+
+collapse d_t_1 d_c_1 [aw=stpop], by(year)
+
+twoway ( line d_t_1 year ) ///
+( line d_c_1 year , lpattern ( dash )) , ///
+xline (1968.5) title ( Divorce Rates Evolution  ) ///
+ytitle ( Divorce Rates per 1000 Persons per Year ) ///
+legend (order(1 "Laws changed in 1968-1973" 2 "Reformed after 1988")) ///
+name(fig2, replace)
+* Run check: omitted graph export
+
+restore
+
+/*Seems that the parallel trend assumption holds, as in both graphs the weighted means of the divorce rates for states that changed their divorce laws (either between 1968 and 1988 or between 1969 and 1973) and the ones who didn't seems to follow the same pattern, even if in states where the divorce laws were introduced the mean is higher (this makes sense, as it might be that more progressive states are the ones that intorduces these kind of laws, and it is likely that in such states divorce rates are higher due to enhanced female independence). */ 
+
+*POINT C
+keep if year == 1968 | year == 1978
+
+gen UNILATERAL = . 
+replace UNILATERAL = 0 if lfdivlaw == 2000 
+replace UNILATERAL = 1 if inrange(lfdivlaw, 1968, 1973)
+drop if UNILATERAL == . 
+gen POST = 0 
+replace POST = 1 if year == 1978
+gen POST_UNILATERAL = 0 
+replace POST_UNILATERAL = 1 if UNILATERAL == 1 & POST == 1
+
+*pooled regression 
+regress div_rate POST_UNILATERAL POST [aw=stpop]
+
+*DiD regression 
+regress div_rate POST POST_UNILATERAL UNILATERAL [aw=stpop]
+
+/* interpretation: the coefficient for unilateral is always positive: this means that in states that introduced the divorce laws in the period 1968-1973, the divorce rate was higher (at least in the years 1968 and 1978, which is the ones we have in the sample). This is consitent with the second graph analyzed in point B. Similarly, post is positive, indicating a general growth in the number of divorces over time (again, this is consistent with the second graphs in point B). 
+However, post_unilateral is significant just in the first regression. 
+The second regression suggests that there is no increase specific to being a state where the unilateral laws were introduced betwenn 1969 and 1973. 
+The fact that the coefficient for post_unilateral is significant in the first regression is probably because it was capturing the effect of unilateral. 
+Oveall the second analysis suggest no effect in the introduction of unilateral divorce laws, just a correlation between states with higher rastes of divorces and introducing unilateral divorce laws. */
+
+*POINT D 
+sum div_rate [aw=stpop] if UNILATERAL == 1 & POST == 1
+scalar m11 = r(mean)
+sum div_rate [aw=stpop] if UNILATERAL == 1 & POST == 0
+scalar m10 = r(mean)
+sum div_rate [aw=stpop] if UNILATERAL == 0 & POST == 1
+scalar m01 = r(mean)
+sum div_rate [aw=stpop] if UNILATERAL == 0 & POST == 0
+scalar m00 = r(mean)
+
+* Export to Excel a table
+putexcel set TABLE_1.xlsx , replace
+putexcel A1 = "DiD Table" B1 = "UNILATERAL = 1" C1 = "UNILATERAL = 0" D1 = "Difference 2"
+putexcel A2 = "POST = 1" B2 = (m11) C2 = (m01) D2 = (m11 - m01)
+putexcel A3 = "POST = 0" B3 = (m10) C3 = (m00) D3 = (m10 - m00)
+putexcel A4 = "Difference 1" B4 = (m11 - m10) C4 = (m01 - m00) D4 = ((m11 - m10) - (m01 - m00)) 
+
+
+*POINT E 
+use "${filepath}pset_2.dta", clear
+*this analysis in Wolfers is based on a panel data: 
+encode st, gen(st_id)
+xtset st_id year
+
+keep if inrange(year, 1956, 1988)
+gen IMP_UNILATERAL = 0 
+replace IMP_UNILATERAL = 1 if year >= lfdivlaw
+
+*regress div_rate on state and year dummies and dummy imp_unilateral
+
+*note: commented out there are "manual" DiD regression, which yields the same results
+
+*regress div_rate IMP_UNILATERAL i.year i.st_id [aw=stpop]
+ 
+reghdfe div_rate IMP_UNILATERAL [aw=stpop], absorb(st_id year) vce(cluster st_id)
+
+*add linear time trends 
+*regress div_rate IMP_UNILATERAL i.year i.st_id i.st_id#c.year [aw=stpop]
+
+reghdfe div_rate IMP_UNILATERAL [aw=stpop], absorb(st_id year i.st_id#c.year) vce(cluster st_id)
+
+*add also quadratic time trends (defined as difference from 1969 to have smaller values)
+gen year2 = (year-1956)*(year-1956)  
+
+
+*CHECK, he doesn't do it like that but if I do like him the square thing gets omitted ???
+
+*regress div_rate IMP_UNILATERAL i.year i.st_id i.st_id#c.year c.year2#i.st_id [aw=stpop]
+
+reghdfe div_rate IMP_UNILATERAL [aw=stpop], absorb(st_id year c.year#i.st_id c.year2#i.st_id) vce(cluster st_id)
+
+/* Interpretation: 
+The most important thing to note is that the coefficient for the dummy imp_unilateral (=1 for years when the laws already passed), changes across specifications: for the first one, it is negative and non-significant. This changes as we take into account linear time trend for each state, as the new coefficient for impo_unilateral is positive and significant at any conventional level (it has value 0.47). 
+As the first specification was forcing all states to have the same coefficient (so the same effect of the laws passing), this was likely creating a bias which is not present anymore as we allow for state and year interactions. 
+Also in the third specification imp_unilateral is significant, and it remains like that in the third specification (0.33, significant at the 0.05 level). Again, this suggests that taking into account  quadratic time trends as well allows to get a more precise estimate (indeed some quatratic time trends are significant). The coefficient in the third specificaiton is smaller, suggesting that not allowing for quadratic time trend leads to an overestimation bias. 
+
+Overall, the reason why the results change across specification seems to be that different states are on different trends, therefore suggesting a violation of the parallel trend assumption: they don't only have different intercepts (as it is captured by significant coefficient of many states fixed effects in the first specification), but different slopes when we regress  divorce rates on having passed divoce laws. This might suggest that the parallel trend assumption doesn't hold. 
+On the contrary, if the parallel trend assumption holds, the results for the imp_unilateral coefficient should be consistent. */
+
+*POINT F
+*create simulated observations
+clear
+set obs 6
+gen obs = _n 
+gen state = floor(.9 + obs/3 ) 
+bysort state: gen year = _n 
+gen D = (state == 1 & year == 3) 
+replace D = 1 if state == 2 & (year == 2 | year == 3)
+
+*create simulated outcomes
+set seed 1111
+gen Y = 0.1 + 0.02*(year==2) + 0.05*(D==1) + runiform()/100
+gen Y2 = 0.1 + 0.02*(year==2) + 0.05*(D==1) + 0.3*(state == 2 & year == 3) + runiform()/100
+gen Y3 = 0.1 + 0.02*(year==2) + 0.05*(D==1) + 0.4*(state == 2 & year == 3) + runiform()/100
+gen Y4 = 0.1 + 0.02*(year==2) + 0.05*(D==1) + 0.5*(state == 2 & year == 3) + runiform()/100
+
+*regress all Ys on state and year dummies + a treatment dummy 
+xtset state year 
+reghdfe Y D, absorb(state year) vce(cluster state)
+reghdfe Y2 D, absorb(state year) vce(cluster state)
+reghdfe Y3 D, absorb(state year) vce(cluster state)
+reghdfe Y4 D, absorb(state year) vce(cluster state)
+
+/*when we use the first Y, there is a positive tratment effect that is specified in the Y equation, and that it is correctly identifies in the regression (here the coefficient is 0.049, very close to the theoretical 0.05, significant at any conventional size). 
+However, under the Y2,3,4 specification, we add an additional positive component in period 3  for state 2: this can be interpreted as a boost of the treatment effect in the second period of treatment, or as something specific to state 2. in any case, we end up with heterogeneous treatment effect.
+We easily see that the coefficient estimation for D, even if it remains significant, gets wrong in all of the remaining regressions. It is negative, and the bias increases the bigger the shock in period 3 becomes (note it goes from 0.3 to 0.5). 
+With staggered implementetion and heterogeneous treatment effect, we no longer compare a treated and an untreated unit: already treated units are used as controls for later-treated units. These simple regressions show how if there are time trends that we do not take into account across states, the resulting coefficients for the treatment can get biased, making it impossible to estimate the treatment coefficient consistenly. */ 
+
+*POINT G
+*keep balanced panel 
+twowayfeweights Y state year D, type(feTR)
+twowayfeweights Y2 state year D, type(feTR)
+twowayfeweights Y3 state year D, type(feTR)
+twowayfeweights Y4 state year D, type(feTR)
+
+/* The TWFE estimand is the sum of the ATT for the specific (state, year) with weights that sum to one. The coefficient for D in the regression is the sample estimate of the TWFE estimand. 
+However, weights can be negative. This is not relevant for the first regression (where Y is the outcome) as the ATT is the same for all states. But as we get staggered adoption (Y2, Y3, Y4) negative weights matter, as this can lead to wrong counterfactuals if the size or sign of the treatment changes over time. 
+In this simulation the cell (state = 2, year = 3) has the larger treatment effect as it both receives the baseline treatment and the positive shock: in these cases the ATT varies across units and time.
+The ATT for state 2, year 3 is way bigger but it is taken into account with a negative weight: this leads the overall coefficient for D downward and even makes it negative. As the size of the shock increases (progressively going from Y2 to Y4), the ATT for (state = 2, year = 3) increases, and the coefficient for D gets more and more negative (the bias increases in absolute value). 
+Negative weights explain the biases in the last three regressions, and also why the bias increases as the shock increases. */
+
+* POINT H
+
+*reload data
+
+use "${filepath}pset_2.dta", clear
+encode st, gen(st_id)
+xtset st_id year
+keep if inrange(year, 1956, 1988)
+gen IMP_UNILATERAL = 0 
+replace IMP_UNILATERAL = 1 if year >= lfdivlaw
+
+*create initial population variable
+sort st year
+by st: gen init_stpop = stpop[1]
+
+*re-run regression using new weights
+reghdfe div_rate IMP_UNILATERAL [aw=init_stpop], absorb(st_id year) vce(cluster st_id)
+
+*Bacon decomposition of treatment effect
+bacondecomp div_rate IMP_UNILATERAL [aw=init_stpop], ddetail msymbols(O T)
+* Run check: omitted graph export
+
+* Note: bacondecomp requires a balanced panel and an absorbing (weakly monotonic) treatment. IMP_UNILATERAL is already absorbing by construction.
+* We use init_stpop as weights for consistency with the regression above.
+
+* Goodman-Bacon decomposes the TWFE estimator into a weighted average of DiD comparisons (treated vs not-treated, early treatment vs late treatment and late treatment vs early treatment). Some components may receive problematic weights (negative or because already-treated units are used as controls), which we will now check for our estimator.
+
+* The Never-treated vs. timing comparison dominates the TFWE coefficient (weight of 0.88)
+* All individual weights in the decomposition are positive, so there is no evidence of negative weights.
+* However, there is significant heterogeneity (from -1.1 to +1.5) in the 2×2 DiD estimates of timing-group comparisons (Early vs. Late and Late vs. Early), with some negative estimates receiving small but non-zero weights. This heterogeneity suggests that treatment effects vary across cohorts and over time. 
+
+*POINT I
+
+*step 1: create unilateral divorce dummies
+
+quietly{
+* Relative time: years since (positive) or until (negative) treatment
+gen rel_time = year - lfdivlaw
+
+*step 2: dummies restriction
+replace rel_time = -10 if rel_time < -10 & rel_time != . 
+replace rel_time = . if lfdivlaw == 2000 & year > 1988
+*for dummies with lfdivlaw == 2000 (which had to implement the reform yet at the time of the study) we set the dummy for being more that 10 year before the reform to 1 until 1988. We then set the values to missing after 1988 because we don't know the specific year in which the reform took place if it is after 1998 (the last year in our sample). They are set to missing  so they don't enter dummies (they still contribute to identification through state and year FEs). 
+
+replace rel_time = 15  if rel_time >  15 & rel_time != .
+
+*step 3: create lead dummies (pre-treatment): tau = -10 to -2
+forvalues k = 10(-1)2 {
+    gen D_lag`k' = (rel_time == -`k')
+}
+
+*step 4: create lag dummies (post-treatment): tau = 0 to 15
+forvalues k = 0/15 {
+    gen D_lead`k' = (rel_time == `k')
+}
+
+*step 5: label dummies for clean coefplot x-axis
+forvalues k = 10(-1)2 {
+    label var D_lag`k' "-`k'"
+}
+forvalues k = 0/15 {
+    label var D_lead`k' "+`k'"
+}
+}
+
+*(i): regression on state and year FEs only
+reghdfe div_rate D_lag* D_lead* [aw=stpop], ///
+    absorb(st_id year) vce(cluster st_id)
+estimates store es_1
+
+*(ii): regression + state specific linear time trends
+reghdfe div_rate D_lag* D_lead* [aw=stpop], ///
+    absorb(st_id year i.st_id#c.year) vce(cluster st_id)
+	
+estimates store es_2
+
+*(iii): regression + state specific quadratic time trends (computed as difference from 1956 to make them smaller)
+gen year2 = (1956 - year)^2 
+reghdfe div_rate D_lag* D_lead* [aw=stpop], ///
+    absorb(st_id year i.st_id#c.year i.st_id#c.year2) vce(cluster st_id)
+estimates store es_3
+
+*Interpretation: Across all three specifications, pre-treatment coefficients are close to zero and insignificant, supporting the parallel trends assumption. Post-treatment, we observe a temporary spike in divorce rates in the first 8 years following the reform, which then fades and becomes insignificant — something the single-coefficient analysis in point (e) could not detect, as it was averaging over this entire dynamic response into one number.
+
+*POINT J
+
+*ssc install coefplot
+set scheme s1color
+
+* Plot all 3 specifications on the same graph using stored estimates.
+coefplot (es_1, label("No trends")) ///
+         (es_2, label("Linear trends")) ///
+         (es_3, label("Quadratic trends")), ///
+         keep(D_lag* D_lead*) vertical yline(0) ///
+         xtitle("Years relative to treatment") ///
+         ytitle("Effect on divorce rate (per 1,000 persons)") ///
+         title("Event Study: Unilateral Divorce Laws") ///
+         xlabel(, angle(45) alternate) ///
+         legend(position(6))
+* Run check: omitted graph export
+
+*POINT K
+
+*Wolfers (2006) produces a more exhaustive and dynamic analysis of data than Friedberg (1998). His main contributions are on methdology and sample
+
+* Methodology : Friedberg's state-specific trends are misidentified because she uses a single Unilateral dummy to capture the full dynamic response, the state-specific trends end up absorbing part of the post-treatment adjustment (the return to baseline after the initial spike) rather than only pre-existing differences. This leads her to overestimate the persistent effect of divorce laws. Indeed "standard difference-in-difference approaches are led to confound pre-existing trends with the effects of the policy shock".
+* This is why in the exercise we add IMP_UNILATERAL, an absorbing variable.
+
+* Sample : extending the pre-treatment period to 1956 allowing for a more credible identification of pre-existing state trends. He also investigates the post-treatment period to examine whether the treatment results in a shift of divorces timing rather than an increase in divorces. 
+
+*Other contributions from his paper are: 
+*(i) adding some granularity on the analysis by constructing a measure for the ever-divorced population and using the number of divorces per 1,000 married persons as a metric
+* (ii) exploring implications for the stock of marriage through stock-flow dynamics. 
+*(iii) challenging Friedberg's conclusions on the long-term impact of divorce laws on the divorce rate by showcasing the difficulty of such an analysis.
+* His conclusion is that the "results suggest only a minor role for changing divorce laws", suggesting that spousal bargaing is "sufficiently close to efficient"
+
+* He explores two main assumptions:
+*(i) the Coasian assumption of efficient bargaining arguably provides a more useful guide than the polar opposite assumption of no bargaining --> divorce laws shouldn't affect divorce rate in the long-term.
+*(ii) each spouse has independent forecast errors.
+* His results are therefore consistent with a Coasian view of marital bargaining. 
+
+
+* Point L
+
+* Key requirements are satisfied, as we have some never-treated" or "last-treated" states to serve as the clean control.
+
+* Graph 1 FE only
+
+which avar
+which eventstudyinteract
+
+* Step 1: generate control and treatment cohorts 
+gen never_treated = (lfdivlaw == 2000)
+gen cohort = lfdivlaw
+replace cohort = . if lfdivlaw == 2000
+
+* Step 2: run Sun & Abraham estimator
+set matsize 11000
+
+eventstudyinteract div_rate D_lag* D_lead* [aw=stpop], ///
+    cohort(cohort) control_cohort(never_treated) ///
+    absorb(i.st_id i.year) vce(cluster st_id)
+
+* Step 3: plot results
+
+* Label dummies for clean x-axis
+forvalues k = 10(-1)2 {
+    label var D_lag`k' "-`k'"
+}
+forvalues k = 0/15 {
+    label var D_lead`k' "+`k'"
+}
+
+* Extract IW coefficients and SEs into a matrix
+matrix C = e(b_iw)
+mata st_matrix("A", sqrt(diagonal(st_matrix("e(V_iw)"))))
+matrix C = C \ A'
+
+* Plot
+set scheme s1color
+coefplot matrix(C[1]), se(C[2]) keep(D_lag* D_lead*) vertical yline(0) ///
+    xtitle("Years relative to treatment") ///
+    ytitle("Effect on divorce rate (per 1,000 persons)") ///
+    title("Sun & Abraham (2021): FE only") ///
+    xlabel(, angle(45) alternate)
+* Run check: omitted graph export
+
+	
+* Graph 2 FE + linear trends
+
+eventstudyinteract div_rate D_lag* D_lead* [aw=stpop], ///
+    cohort(cohort) control_cohort(never_treated) ///
+    absorb(i.st_id i.year i.st_id#c.year) vce(cluster st_id)
+
+	
+	matrix C = e(b_iw)
+mata st_matrix("A", sqrt(diagonal(st_matrix("e(V_iw)"))))
+matrix C = C \ A'
+
+set scheme s1color
+coefplot matrix(C[1]), se(C[2]) keep(D_lag* D_lead*) vertical yline(0) ///
+    xtitle("Years relative to treatment") ///
+    ytitle("Effect on divorce rate (per 1,000 persons)") ///
+    title("Sun & Abraham (2021): FE + linear trends") ///
+    xlabel(, angle(45) alternate)
+* Run check: omitted graph export
+
+
+* Graph 3 FE + quadratric trends
+
+eventstudyinteract div_rate D_lag* D_lead* [aw=stpop], ///
+    cohort(cohort) control_cohort(never_treated) ///
+    absorb(i.st_id i.year i.st_id#c.year i.st_id#c.year2) ///
+    vce(cluster st_id)
+	
+	matrix C = e(b_iw)
+mata st_matrix("A", sqrt(diagonal(st_matrix("e(V_iw)"))))
+matrix C = C \ A'
+
+set scheme s1color
+coefplot matrix(C[1]), se(C[2]) keep(D_lag* D_lead*) vertical yline(0) ///
+    xtitle("Years relative to treatment") ///
+    ytitle("Effect on divorce rate (per 1,000 persons)") ///
+    title("Sun & Abraham (2021): FE + linaer and quadratic trends") ///
+    xlabel(, angle(45) alternate)
+* Run check: omitted graph export
+
+
+* Corrections performed by proposed algorithm:
+* Sun & Abraham (2021) corrects the contamination problem in standard TWFE event-study regressions. The IW estimator instead:
+* (i)  estimates cohort-specific effects by interacting each relative-time dummy with cohort indicators (i.e. the year of treatment adoption)
+* (ii) aggregates these cohort-specific effects using sample-share weights, ensuring all weights are non-negative.
+
+* Results consistency: 
+* Results based on the Sun & Abraham (2021) correction are consistent with Wolfers (2006): pre-treatment coefficients are close to zero (supporting parallel trends), divorce rates spike temporarily in the first years following reform before returning to baseline. We later observe negative coefficients beyond year 8, also consistent with Wolfers' findings of a potential reversal. However, he cautions against drawing conclusions about long-run effects (as underlined in POINT K).
+* In particular, note that consistency holds mainly for the only FE and FE+time trends, while there is an increase in uncertainty when adding the quadratic time trend which makes the coefficient estimate more noisy (especially for the dummy D^+15). 
+
+
